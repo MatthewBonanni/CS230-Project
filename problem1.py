@@ -5,6 +5,9 @@ import tensorflow as tf
 from tensorflow import keras
 from tensorflow.keras import layers
 
+from numpy.random import seed
+seed(1)
+tf.random.set_seed(2)
 dataFile = "TBM.csv"
 seed = 42
 learning_rate = 0.001
