@@ -4,9 +4,25 @@ import pandas as pd
 import matplotlib.pyplot as plt
 
 n = 50
-beta = np.linspace(0, np.pi/2, n)
-M = np.linspace(1.1, 10, n)
-gamma = np.linspace(1, 2, n)
+rad_deg = 180 / np.pi
+beta_start = 0.
+beta_end = np.pi/2.
+
+gamma_start = 1.1
+gamma_end = 1.6
+
+M_start = 1.5
+M_end = 8.0
+
+beta = np.linspace(beta_start, beta_end, n)
+M = np.linspace(M_start, M_end, n)
+gamma = np.linspace(gamma_start, gamma_end, n)
+
+# beta = np.linspace(0., np.pi/2., n)
+# M = np.linspace(1.1, 10., n)
+# gamma = np.linspace(1., 2., n)
+
+
 
 def TBM(beta, M, gamma):
     return np.arctan(2 * (1/np.tan(beta)) *
@@ -47,9 +63,23 @@ for i in range(len(M)):
 
 # Assemble table and write data
 data = pd.DataFrame({
-    "theta": theta_mesh.flatten(),
-    "beta": beta_mesh.flatten(),
+    "theta": rad_deg*theta_mesh.flatten(),
+    "beta": rad_deg*beta_mesh.flatten(),
     "M": M_mesh.flatten(),
     "gamma": gamma_mesh.flatten(),
     "strong": strong.flatten()})
 data.to_csv("TBM.csv")
+# fig,ax = plt.subplots()
+
+
+# ax.set_xlabel("year")
+# ax.set_ylabel("weight")
+# ax.legend(loc='best')
+
+
+df = pd.read_csv("TBM.csv")
+M1p5 = df[df["M"] == 1.5]
+M1p5_weak = M1p5[ M1p5["strong"] == False]
+M1p5_weak.plot(x="theta", y=["beta"])
+
+plt.show()
