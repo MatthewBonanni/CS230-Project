@@ -7,7 +7,9 @@ from tensorflow.keras import layers
 
 dataFile = "TBM.csv"
 seed = 42
-learning_rate = 0.1
+learning_rate = 0.001
+
+beta_threshold = 3.0
 
 def plot_loss(history, filename):
   plt.figure()
@@ -54,53 +56,91 @@ model_linear.compile(
 history_linear = model_linear.fit(
     train_features,
     train_labels,
-    epochs = 10,
+    epochs = 100,
     verbose = 1,
     validation_split = 0.1)
 
 plot_loss(history_linear, "loss_linear.png")
 
-## Build and train deep model
+# Build and train deep model
 print("\nDeep model...\n")
 
 model_deep = tf.keras.Sequential([
-    layers.BatchNormalization(),
-    layers.Dense(
-        units = 10,
-        kernel_initializer = 'glorot_uniform',
-        bias_initializer = 'zeros',
-        activation = 'relu'),
-    layers.BatchNormalization(),
-    layers.Dense(
-        units = 10,
-        kernel_initializer = 'glorot_uniform',
-        bias_initializer = 'zeros',
-        activation = 'relu'),
-    layers.BatchNormalization(),
-    layers.Dense(
-        units = 10,
-        kernel_initializer = 'glorot_uniform',
-        bias_initializer = 'zeros',
-        activation = 'relu'),
-    layers.BatchNormalization(),
-    layers.Dense(
-        units = 1,
-        kernel_initializer = 'glorot_uniform',
-        bias_initializer = 'zeros',
-        activation = 'linear')])
+   layers.BatchNormalization(),
+   layers.Dense(
+       units = 20,
+       kernel_initializer = 'glorot_uniform',
+       bias_initializer = 'zeros',
+       activation = 'relu'),
+   layers.BatchNormalization(),
+   layers.Dense(
+       units = 20,
+       kernel_initializer = 'glorot_uniform',
+       bias_initializer = 'zeros',
+       activation = 'relu'),
+   layers.BatchNormalization(),
+   layers.Dense(
+       units = 20,
+       kernel_initializer = 'glorot_uniform',
+       bias_initializer = 'zeros',
+       activation = 'relu'),
+   layers.BatchNormalization(),
+   layers.Dense(
+       units = 20,
+       kernel_initializer = 'glorot_uniform',
+       bias_initializer = 'zeros',
+       activation = 'relu'),
+   layers.BatchNormalization(),
+   layers.Dense(
+       units = 20,
+       kernel_initializer = 'glorot_uniform',
+       bias_initializer = 'zeros',
+       activation = 'relu'),
+   layers.BatchNormalization(),
+   layers.Dense(
+       units = 1,
+       kernel_initializer = 'glorot_uniform',
+       bias_initializer = 'zeros',
+       activation = 'linear')])
 
 model_deep.compile(
-    optimizer=tf.optimizers.Adam(learning_rate=learning_rate),
-    loss='mean_absolute_error')
+   optimizer=tf.optimizers.Adam(learning_rate=learning_rate),
+   loss='mean_absolute_error')
 
 history_deep = model_deep.fit(
-    train_features,
-    train_labels,
-    epochs = 100,
-    batch_size = 32,
-    verbose = 1,
-    validation_split = 0.1)
+   train_features,
+   train_labels,
+   epochs = 100,
+   batch_size = 32,
+   verbose = 1,
+   validation_split = 0.1)
 
 plot_loss(history_deep, "loss_deep.png")
 
-import code; code.interact(local=locals())
+
+linear_pred_train = model_linear.predict( np.array( train_features )  )
+deep_pred_train = model_deep.predict( np.array( train_features )  )
+
+linear_pred_test = model_linear.predict( np.array( test_features )  )
+deep_pred_test = model_deep.predict( np.array( test_features )  )
+
+lin_train_correct = np.count_nonzero(np.abs(linear_pred_train.flatten() - train_labels.values) < beta_threshold)
+deep_train_correct = np.count_nonzero(np.abs(deep_pred_train.flatten() - train_labels.values) < beta_threshold)
+
+lin_test_correct = np.count_nonzero(np.abs(linear_pred_test.flatten() - test_labels.values) < beta_threshold)
+deep_test_correct = np.count_nonzero(np.abs(deep_pred_test.flatten() - test_labels.values) < beta_threshold)
+
+print('')
+print('------------------- TRAINING DATA --------------------------')
+print('')
+print(f'Linear Model Correctness: {lin_train_correct/train_labels.values.shape[0]}')
+print(f'Deep Model Correctness: {deep_train_correct/train_labels.values.shape[0]}')
+print('')
+print('------------------- TEST DATA --------------------------')
+print(f'Linear Model Correctness: {lin_test_correct/test_labels.values.shape[0]}')
+print(f'Deep Model Correctness: {deep_test_correct/test_labels.values.shape[0]}')
+print('')
+
+model_linear.save('problem1_linearmodel')
+model_deep.save('problem1_deepmodel')
+# import code; code.interact(local=locals())
