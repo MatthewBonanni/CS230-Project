@@ -1,41 +1,114 @@
 import numpy as np
 import matplotlib.pyplot as plt
 from matplotlib import rc
+from matplotlib.patches import Circle, Wedge, Polygon
 import scipy
 from scipy.interpolate import lagrange
 import pickle
 
+def points_on_line(x0, x1, n):
+    x = np.linspace(x0[0], x1[0], n)
+    y = np.linspace(x0[1], x1[1], n)
+    return np.vstack((x, y)).T
+
+def points_on_square(top_left, l, n):
+    top = points_on_line(top_left, top_left + [l, 0], n//4 + 1)[:-1]
+    right = points_on_line(top_left + [l, 0], top_left + [l, -l], n//4 + 1)[:-1]
+    bottom = points_on_line(top_left + [l, -l], top_left + [0, -l], n//4 + 1)[:-1]
+    left = points_on_line(top_left + [0, -l], top_left, n//4 + 1)[:-1]
+    return np.concatenate([top, right, bottom, left])
+
+def points_on_diamond(tip, l, n):
+    square = points_on_square(tip, l / np.sqrt(2), n)
+    theta = np.pi/4
+    rotation = np.array([[np.cos(theta), -np.sin(theta)], [np.sin(theta),
+        np.cos(theta)]])
+    return (rotation @ square.T).T
+
+def points_on_wedge(tip, l, n):
+    top = points_on_line(tip, tip + [l, l/2], n//3 + 1)[:-1]
+    right = points_on_line(tip + [l, l/2], tip + [l, -l/2], n//3 + 1)[:-1]
+    bottom = points_on_line(tip + [l, -l/2], tip, n//3 + 1)[:-1]
+    return np.concatenate([top, right, bottom])
+
+def points_on_cylinder(tip, d, n):
+    theta = np.linspace(0, 2*np.pi, n+1)[:-1]
+    x = -np.cos(theta)
+    y = np.sin(theta)
+    return (d/2) * np.vstack([x, y]).T
+
 # Load data
 with open('data.pkl', 'rb') as outfile:
-    x, pressure = pickle.load(outfile)
+    data = pickle.load(outfile)
 
-# -- Find shock using the novel USL (Unintelligent Shock Locator) method -- #
+# Geometries
+geoms = {}
+geoms['naca0012'] = np.empty((10, 2))
+geoms['square'] = points_on_square(np.array([0, .5]), 1, 12)
+geoms['diamond'] = points_on_diamond(np.array([0, 0]), 1, 12)
+geoms['wedge'] = points_on_wedge(np.array([0, 0]), 1, 12)
+geoms['cylinder'] = points_on_cylinder(np.array([0, 0]), 1, 12)
 
-# Leftmost point, where the search begins
-x_start = -15
-# Search step size
-dx = .1
-# How far to go before quitting
-stop_distance = 30
-# Points in y-direction to start at
-n_points = 7
-y_starts = np.linspace(-4, 4, n_points)
+# Loop over geometries
+shock = {}
+for case, results in data.items():
+    x_list, pressure_list = results
+    shock[case] = []
+    print(f'Processing the {case} cases')
+    print('Working on case: ', end='', flush=True)
+    # Loop over cases
+    for i in range(len(x_list)):
+        # TODO: Hack
+        if i > 3: break
+        print(f'{i}, ', end='', flush=True)
+        x = x_list[i]
+        pressure = pressure_list[i]
+        # If the case doesn't exist, skip it and append None
+        if x is None:
+            shock[case].append(None)
+            continue
 
-# Loop over all points in y
-shock_x = np.empty((n_points, 2))
-for y_idx, y_start in enumerate(y_starts):
-    # Find the point closest to (x_start, y_start)
-    start_index = np.argmin(np.linalg.norm(x - ([x_start, y_start]), axis=1))
-    start_x = x[start_index]
-    start_p = pressure[start_index]
+        # -- Find shock -- #
+        # Leftmost point, where the search begins
+        x_start = -5
+        # Search step size
+        dx = .01
+        # How far to go before quitting
+        stop_distance = 5
+        # Points in y-direction to start at
+        n_points = 5
+        y_starts = np.linspace(-4, 4, n_points)
 
-    # Move from left to right, waiting for a pressure jump
-    for i in range(int(stop_distance/dx)):
-        index = np.argmin(np.linalg.norm(x - (start_x + [i * dx, 0]), axis=1))
-        # If the pressure jumps, it's a shock
-        if pressure[index] > 1.4*start_p:
-            shock_x[y_idx, :] = x[index]
-            break
+        # Loop over all points in y
+        shock_x = np.empty((n_points, 2))
+        for y_idx, y_start in enumerate(y_starts):
+            # Find the point closest to (x_start, y_start)
+            start_index = np.argmin(np.linalg.norm(x - ([x_start, y_start]), axis=1))
+            start_x = x[start_index]
+            start_p = pressure[start_index]
+
+            # Move from left to right, waiting for a pressure jump
+            x_jump = np.empty((3, 2))
+            jumps = [1.2, 1.3, 1.4]
+            j = 0
+            for i in range(int(stop_distance/dx)):
+                index = np.argmin(np.linalg.norm(x - (start_x + [i * dx, 0]), axis=1))
+                # If the pressure jumps, record it
+                if pressure[index] > jumps[j]*start_p:
+                    x_jump[j] = x[index]
+                    j += 1
+                    if j == len(jumps): break
+            shock_x[y_idx, :] = np.mean(x_jump, axis=0)
+        # Save data
+        shock[case].append(shock_x)
+    print()
+
+# Pick case to plot
+case = 'square'
+number = 2
+shock_x = shock[case][number]
+x = data[case][0][number]
+pressure = data[case][1][number]
 
 # Construct interpolant for the shock
 ref_nodes = np.polynomial.chebyshev.chebroots([0]*n_points + [1])
