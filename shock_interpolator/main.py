@@ -7,11 +7,17 @@ from scipy.interpolate import lagrange
 import pickle
 
 def points_on_line(x0, x1, n):
+    '''
+    Calculate (x, y) values of points linearly spaced from x0 to x1.
+    '''
     x = np.linspace(x0[0], x1[0], n)
     y = np.linspace(x0[1], x1[1], n)
     return np.vstack((x, y)).T
 
 def points_on_square(top_left, l, n):
+    '''
+    Calculate (x, y) values of points linearly spaced along a square.
+    '''
     top = points_on_line(top_left, top_left + [l, 0], n//4 + 1)[:-1]
     right = points_on_line(top_left + [l, 0], top_left + [l, -l], n//4 + 1)[:-1]
     bottom = points_on_line(top_left + [l, -l], top_left + [0, -l], n//4 + 1)[:-1]
@@ -19,19 +25,43 @@ def points_on_square(top_left, l, n):
     return np.concatenate([top, right, bottom, left])
 
 def points_on_diamond(tip, l, n):
+    '''
+    Calculate (x, y) values of points linearly spaced along a diamond.
+    '''
+    # First make a square
     square = points_on_square(tip, l / np.sqrt(2), n)
+    # Take the square and rotate it
     theta = np.pi/4
     rotation = np.array([[np.cos(theta), -np.sin(theta)], [np.sin(theta),
         np.cos(theta)]])
     return (rotation @ square.T).T
 
 def points_on_wedge(tip, l, n):
+    '''
+    Calculate (x, y) values of points linearly spaced along a wedge.
+    '''
     top = points_on_line(tip, tip + [l, l/2], n//3 + 1)[:-1]
     right = points_on_line(tip + [l, l/2], tip + [l, -l/2], n//3 + 1)[:-1]
     bottom = points_on_line(tip + [l, -l/2], tip, n//3 + 1)[:-1]
     return np.concatenate([top, right, bottom])
 
+def points_on_triangle(tip, l, n):
+    '''
+    Calculate (x, y) values of points linearly spaced along a triangle.
+    '''
+    # First make a wedge
+    wedge = points_on_wedge(np.array([0, 0]), l, n)
+    # Take the wedge  and rotate it
+    theta = np.pi
+    rotation = np.array([[np.cos(theta), -np.sin(theta)], [np.sin(theta),
+        np.cos(theta)]])
+    flipped = (rotation @ wedge.T).T + tip
+    return np.roll(flipped, n//2, axis=0)
+
 def points_on_cylinder(tip, d, n):
+    '''
+    Calculate (x, y) values of points linearly spaced along a cylinder.
+    '''
     theta = np.linspace(0, 2*np.pi, n+1)[:-1]
     x = -np.cos(theta)
     y = np.sin(theta)
@@ -47,7 +77,9 @@ geoms['naca0012'] = np.empty((10, 2))
 geoms['square'] = points_on_square(np.array([0, .5]), 1, 12)
 geoms['diamond'] = points_on_diamond(np.array([0, 0]), 1, 12)
 geoms['wedge'] = points_on_wedge(np.array([0, 0]), 1, 12)
+geoms['triangle'] = points_on_triangle(np.array([1, 0]), 1, 12)
 geoms['cylinder'] = points_on_cylinder(np.array([0, 0]), 1, 12)
+breakpoint()
 
 # Loop over geometries
 shock = {}
@@ -59,7 +91,7 @@ for case, results in data.items():
     # Loop over cases
     for i in range(len(x_list)):
         # TODO: Hack
-        if i > 3: break
+        if i > 1: break
         print(f'{i}, ', end='', flush=True)
         x = x_list[i]
         pressure = pressure_list[i]
@@ -104,8 +136,8 @@ for case, results in data.items():
     print()
 
 # Pick case to plot
-case = 'square'
-number = 2
+case = 'wedge'
+number = 0
 shock_x = shock[case][number]
 x = data[case][0][number]
 pressure = data[case][1][number]
@@ -123,9 +155,9 @@ fig = plt.figure(figsize=(7,7))
 # Pressure field
 plt.tricontourf(x[:, 0], x[:, 1], pressure, cmap='cividis')
 # Solid body
-cir = plt.Circle((.5, 0), .5, color = 'w')
-ax = plt.gca()
-ax.add_patch(cir)
+x_geom = np.concatenate((geoms[case][:, 0], [geoms[case][0, 0]]))
+y_geom = np.concatenate((geoms[case][:, 1], [geoms[case][0, 1]]))
+plt.fill(x_geom, y_geom, color='white')
 # Shock polynomial
 plt.plot(x_poly(ref_plot_points), y_poly(ref_plot_points), '#ff7518', lw=3)
 # Shock points
