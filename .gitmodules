@@ -1,0 +1,3 @@
+[submodule "AirfoilGenerator"]
+	path = AirfoilGenerator
+	url = git@github.com:pointwise/AirfoilGenerator.git
