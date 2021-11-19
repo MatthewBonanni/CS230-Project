@@ -86,7 +86,7 @@ def main():
             Mach = 1.4 + .1 * i
             if x_list[i] is not None:
                 data_to_write[case][0].append(Mach)
-                data_to_write[case][1].append(shock[case])
+                data_to_write[case][1].append(shock[case][i])
                 data_to_write[case][2].append(geoms[case])
 
     # Write to file
