@@ -19,7 +19,7 @@ def main():
     just_one_case = True
     if just_one_case:
         plot_case = 'square'
-        plot_number = 40
+        plot_number = 0
 
     # Load data
     with open('data.pkl', 'rb') as outfile:
@@ -61,45 +61,19 @@ def main():
                     continue
 
                 # -- Find shock -- #
-                # Leftmost point, where the search begins
-                x_start = -5
-                # Search step size
-                dx = .01
-                # How far to go before quitting
-                stop_distance = 5
+                # Maximum distance away from horizontal line
+                max_offset = .2
                 # Points in y-direction to start at
-                y_starts = np.linspace(-3, 3, n_points)
+                y_starts = np.linspace(-4, 4, n_points)
 
                 # Loop over all points in y
                 shock_x = np.empty((n_points, 2))
                 for y_idx, y_start in enumerate(y_starts):
-                    # Find the point closest to (x_start, y_start)
-                    start_index = np.argmin(np.linalg.norm(x - ([x_start, y_start]), axis=1))
-                    start_x = x[start_index]
-                    start_p = pressure[start_index]
-
-                    # Move from left to right, waiting for a pressure jump
-                    if np.abs(y_start) < .01:
-                        scaling = 1
-                    else:
-                        scaling = 1 / (np.abs(y_start)**2)
-                    jumps = 1 + np.array([.4, .5]) * scaling
-                    x_jump = []
-                    j = 0
-                    old_index = -1
-                    for i in range(int(stop_distance/dx)):
-                        index = np.argmin(np.linalg.norm(x - (start_x + [i * dx, 0]), axis=1))
-                        # No repeats
-                        if index == old_index: continue
-                        # If the pressure jumps, record it
-                        if pressure[index] > jumps[j]*start_p:
-                            # Reject large changes in y
-                            if np.abs(x[index, 1] - y_start) < .2:
-                                x_jump.append(x[index])
-                                j += 1
-                                if j == len(jumps): break
-                                old_index = index
-                    shock_x[y_idx, :] = np.mean(np.array(x_jump), axis=0)
+                    # Find the points which lie near this line
+                    points = np.argwhere(np.abs(x[:, 1] - y_start) < .2)[:, 0]
+                    # Take the point with highest x-direction gradient
+                    point_idx = np.argmax(grad[points, 0])
+                    shock_x[y_idx, :] = x[points[point_idx]]
                 # Save data
                 shock[case].append(shock_x)
             print()
@@ -148,14 +122,19 @@ def plot_data(case, number, n_points, shock_x, x, pressure, grad, geoms,
     y_poly = lagrange(ref_nodes, shock_x[:, 1])
     ref_plot_points = np.linspace(-1, 1, 100)
 
+    plot_pressure = True
     # Plot
     rc('font', **{'family': 'serif', 'serif': ['Computer Modern']})
     rc('text', usetex=True)
     fig = plt.figure(figsize=(7,7))
-    # Pressure gradient field
-    levels = np.linspace(0, np.max(grad[:, 0]), 8)
-    plt.tricontourf(x[:, 0], x[:, 1], grad[:, 0], cmap='cividis', levels =
-            levels)
+    if plot_pressure:
+        # Pressure field
+        plt.tricontourf(x[:, 0], x[:, 1], pressure, cmap='cividis')
+    else:
+        # Pressure gradient field
+        levels = np.linspace(0, np.max(grad[:, 0]), 8)
+        plt.tricontourf(x[:, 0], x[:, 1], grad[:, 0], cmap='cividis', levels =
+                levels)
     # Solid body
     x_geom = np.concatenate((geoms[case][:, 0], [geoms[case][0, 0]]))
     y_geom = np.concatenate((geoms[case][:, 1], [geoms[case][0, 1]]))
@@ -172,10 +151,10 @@ def plot_data(case, number, n_points, shock_x, x, pressure, grad, geoms,
     plt.xlim([-5, 5])
     plt.ylim([-5, 5])
     plt.tick_params(labelsize=12)
-    #plt.legend(loc='center left', fontsize = 20)
-    cbaxes = inset_axes(plt.gca(), width="3%", height="30%", loc=3)
-    cbar = plt.colorbar(cax=cbaxes, orientation = 'vertical')
-    cbar.set_label('$x$ Pressure Gradient', rotation=0, labelpad=0, y=1.15)
+    if not plot_pressure:
+        cbaxes = inset_axes(plt.gca(), width="3%", height="30%", loc=3)
+        cbar = plt.colorbar(cax=cbaxes, orientation = 'vertical')
+        cbar.set_label('$x$ Pressure Gradient', rotation=0, labelpad=0, y=1.15)
 
     if save_fig:
         os.makedirs(f'plots/{case}', exist_ok = True)
