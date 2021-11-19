@@ -1,30 +1,80 @@
-import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
 import pickle
 import tensorflow as tf
 from tensorflow import keras
 from tensorflow.keras import layers
+import matplotlib.pyplot as plt
+import matplotlib.font_manager
+plt.rcParams.update({
+    "text.usetex": True,
+    "font.family": "serif",
+    "font.serif": ["Computer Modern Roman"],
+})
 
-from numpy.random import seed
-seed(1)
-tf.random.set_seed(2)
+XSMALL_SIZE = 12
+SMALL_SIZE = 14
+MEDIUM_SIZE = 16
+BIGGER_SIZE = 18
+
+plt.rc('font', size=SMALL_SIZE)          # controls default text sizes
+plt.rc('axes', titlesize=SMALL_SIZE)     # fontsize of the axes title
+plt.rc('axes', labelsize=MEDIUM_SIZE)    # fontsize of the x and y labels
+plt.rc('xtick', labelsize=SMALL_SIZE)    # fontsize of the tick labels
+plt.rc('ytick', labelsize=SMALL_SIZE)    # fontsize of the tick labels
+plt.rc('legend', fontsize=XSMALL_SIZE)   # legend fontsize
+plt.rc('figure', titlesize=BIGGER_SIZE)  # fontsize of the figure title
+
 dataFile = "shock_interpolator/shock.pkl"
-n_hidden_layers = 5
-n_hidden_units = 30
+load_model = True
+model_path = "problem2_model"
+n_hidden_layers = 10
+n_hidden_units = 100
 seed = 42
-learning_rate = 0.001
-mean_dist_threshold = 0.01
+learning_rate = 0.005
+train_epochs = 1000
+mean_dist_threshold = 0.25
+
+np.random.seed(seed)
+tf.random.set_seed(seed)
 
 def plot_loss(history, filename):
-  plt.figure()
-  plt.semilogy(history.history['loss'], label='loss')
-  plt.semilogy(history.history['val_loss'], label='val_loss')
-  plt.xlabel('Epoch')
-  plt.ylabel('Error')
-  plt.legend()
-  plt.grid(True)
-  plt.savefig(filename, dpi=300)
+    plt.figure()
+    plt.semilogy(history.history['loss'], label='Training Loss')
+    plt.semilogy(history.history['val_loss'], label='Validation Loss')
+    plt.xlabel('Epoch')
+    plt.ylabel('Error')
+    plt.legend()
+    plt.grid(True)
+    plt.savefig(filename, bbox_inches='tight', dpi=300)
+
+def reshape_pts(pts):
+    pts_x = pts[:, 0::2]
+    pts_y = pts[:, 1::2]
+    return np.stack((pts_x, pts_y))
+
+def correct(labels, preds, threshold):
+    norm = np.linalg.norm(reshape_pts(preds) - reshape_pts(labels), axis=0)
+    mean = np.mean(norm, axis=1)
+    return mean < threshold
+
+def plot_sample(features, geom_cols, labels, preds, index, filename):
+    sample_mach = features.iloc[index]['mach']
+    sample_geom_x = features.iloc[index][geom_cols].to_numpy()[0::2]
+    sample_geom_y = features.iloc[index][geom_cols].to_numpy()[1::2]
+    sample_labels_x = labels[index, 0::2]
+    sample_labels_y = labels[index, 1::2]
+    sample_preds_x = preds[index, 0::2]
+    sample_preds_y = preds[index, 1::2]
+    plt.figure()
+    plt.scatter(sample_geom_x, sample_geom_y, label="Geometry")
+    plt.scatter(sample_labels_x, sample_labels_y, label="Label")
+    plt.scatter(sample_preds_x, sample_preds_y, label="Prediction")
+    plt.title("Sample Result, $M = {0:.2f}$".format(sample_mach))
+    plt.xlabel("$x$")
+    plt.ylabel("$y$")
+    plt.legend()
+    plt.savefig(filename, bbox_inches='tight', dpi=300)
 
 print("Loading data...")
 
@@ -38,6 +88,12 @@ n_geom = data_raw['cylinder'][2][0].shape[0]
 n_cases = 0
 for family, value in data_raw.items():
     n_cases += len(value[0])
+labels_cols = []
+for i in range(n_shock):
+    labels_cols += ['shock_{0}_x'.format(i), 'shock_{0}_y'.format(i)]
+geom_cols = []
+for i in range(n_geom):
+    geom_cols += ['geom_{0}_x'.format(i), 'geom_{0}_y'.format(i)]
 
 # Initialize data table
 data = pd.DataFrame(index=np.arange(n_cases))
@@ -64,22 +120,20 @@ for family, value in data_raw.items():
             data.loc[row, 'geom_{0}_y'.format(j)] = value[2][i][j, 1]
         row += 1
 
+# Drop NACA cases
+data = data[data['type'] != 'naca0012']
+
 # Train-test split
 train_data = data.sample(frac=0.9, random_state=seed)
 test_data = data.drop(train_data.index)
 
 # Break out labels and features
-labels_cols = []
-for i in range(n_shock):
-    labels_cols += ['shock_{0}_x'.format(i), 'shock_{0}_y'.format(i)]
 train_features = train_data.copy()
 test_features = test_data.copy()
 train_labels = train_features[labels_cols].copy()
 test_labels = test_features[labels_cols].copy()
 train_features = train_features.drop(columns=labels_cols+['type'])
 test_features = test_features.drop(columns=labels_cols+['type'])
-
-print("Building model...")
 
 # Define layers
 norm_layer = layers.BatchNormalization()
@@ -94,45 +148,61 @@ output_layer = layers.Dense(
     bias_initializer = 'zeros',
     activation = 'linear')
 
-# Build model
-model = tf.keras.Sequential([norm_layer])
-for i in range(n_hidden_layers):
-    model.add(dense_layer)
-    model.add(norm_layer)
-model.add(output_layer)
+if load_model:
+    print("Loading model...")
+    model = keras.models.load_model(model_path)
+else:
+    print("Building model...")
 
-# Compile model
-model.compile(
-   optimizer=tf.optimizers.Adam(learning_rate=learning_rate),
-   loss='mean_absolute_error')
+    # Build model
+    model = tf.keras.Sequential([norm_layer])
+    for i in range(n_hidden_layers):
+        model.add(dense_layer)
+        model.add(norm_layer)
+    model.add(output_layer)
 
-print("Training model...")
+    # Compile model
+    model.compile(
+        optimizer=tf.optimizers.Adam(learning_rate=learning_rate),
+        loss='mean_squared_error')
 
-# Train model
-history = model.fit(
-   train_features,
-   train_labels,
-   epochs = 100,
-   batch_size = 32,
-   verbose = 1,
-   validation_split = 0.1)
+    print("Training model...")
 
-plot_loss(history, "loss.png")
+    # Train model
+    history = model.fit(
+        train_features,
+        train_labels,
+        epochs = train_epochs,
+        batch_size = 32,
+        verbose = 1,
+        validation_split = 0.1)
+    model.save(model_path)
 
-pred_train = model.predict(np.array(train_features))
-pred_test = model.predict(np.array(test_features))
+    plot_loss(history, "loss.png")
 
-train_correct = np.count_nonzero(np.abs(pred_train.flatten() - train_labels.values) < mean_dist_threshold)
-test_correct = np.count_nonzero(np.abs(pred_test.flatten() - test_labels.values) < mean_dist_threshold)
+train_preds = model.predict(np.array(train_features))
+test_preds = model.predict(np.array(test_features))
+
+train_correct = correct(train_labels.to_numpy(), train_preds, mean_dist_threshold)
+test_correct = correct(test_labels.to_numpy(), test_preds, mean_dist_threshold)
 
 print('')
 print('------------------- TRAINING DATA --------------------------')
 print('')
-print(f'Model Correctness: {train_correct/train_labels.values.shape[0]}')
+print(f'Model Correctness: {np.sum(train_correct)/train_correct.shape[0]}')
 print('')
 print('------------------- TEST DATA --------------------------')
-print(f'Model Correctness: {test_correct/test_labels.values.shape[0]}')
+print(f'Model Correctness: {np.sum(test_correct)/test_correct.shape[0]}')
 print('')
 
-model_deep.save('problem2_model')
+correct_tests = np.argwhere(test_correct).flatten()
+incorrect_tests = np.argwhere(np.logical_not(test_correct)).flatten()
+plot_sample(
+    test_features,
+    geom_cols,
+    test_labels.to_numpy(),
+    test_preds,
+    np.random.choice(correct_tests),
+    "sample.png")
+
 # import code; code.interact(local=locals())
