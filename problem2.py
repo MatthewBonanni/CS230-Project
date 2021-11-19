@@ -9,7 +9,7 @@ from tensorflow.keras import layers
 from numpy.random import seed
 seed(1)
 tf.random.set_seed(2)
-dataFile = "data.pkl"
+dataFile = "shock_interpolator/shock.pkl"
 n_hidden_layers = 5
 n_hidden_units = 30
 seed = 42
@@ -33,8 +33,8 @@ with open(dataFile, 'rb') as infile:
     data_raw = pickle.load(infile)
 
 # Determine data sizes
-n_shock = data_raw['circle'][1][0].shape[0]
-n_geom = data_raw['circle'][2][0].shape[0]
+n_shock = data_raw['cylinder'][1][0].shape[0]
+n_geom = data_raw['cylinder'][2][0].shape[0]
 n_cases = 0
 for family, value in data_raw.items():
     n_cases += len(value[0])
@@ -47,19 +47,21 @@ for i in range(n_shock):
     data['shock_{0}_x'.format(i)] = 0
     data['shock_{0}_y'.format(i)] = 0
 for i in range(n_geom):
-    data['geom{0}_x'.format(i)] = 0
-    data['geom{0}_y'.format(i)] = 0
+    data['geom_{0}_x'.format(i)] = 0
+    data['geom_{0}_y'.format(i)] = 0
 
 # Fill data table
 row = 0
 for family, value in data_raw.items():
     for i in range(len(value[0])):
-        data.loc[i, 'type'] = family
-        data.loc[i, 'mach'] = value[0][i]
-        data.loc[i, 'shock_{0}_x'.format(i)] = value[1][i, 0]
-        data.loc[i, 'shock_{0}_y'.format(i)] = value[1][i, 1]
-        data.loc[i, 'geom_{0}_x'.format(i)] = value[2][i, 0]
-        data.loc[i, 'geom_{0}_y'.format(i)] = value[2][i, 1]
+        data.loc[row, 'type'] = family
+        data.loc[row, 'mach'] = value[0][i]
+        for j in range(n_shock):
+            data.loc[row, 'shock_{0}_x'.format(j)] = value[1][i][j, 0]
+            data.loc[row, 'shock_{0}_y'.format(j)] = value[1][i][j, 1]
+        for j in range(n_geom):
+            data.loc[row, 'geom_{0}_x'.format(j)] = value[2][i][j, 0]
+            data.loc[row, 'geom_{0}_y'.format(j)] = value[2][i][j, 1]
         row += 1
 
 # Train-test split
@@ -74,8 +76,8 @@ train_features = train_data.copy()
 test_features = test_data.copy()
 train_labels = train_features[labels_cols].copy()
 test_labels = test_features[labels_cols].copy()
-train_features.drop(labels_cols)
-test_features.drop(labels_cols)
+train_features = train_features.drop(columns=labels_cols+['type'])
+test_features = test_features.drop(columns=labels_cols+['type'])
 
 print("Building model...")
 
@@ -87,7 +89,7 @@ dense_layer = layers.Dense(
     bias_initializer = 'zeros',
     activation = 'relu')
 output_layer = layers.Dense(
-    units = n_shock,
+    units = n_shock*2, # double for x and y coords
     kernel_initializer = 'glorot_uniform',
     bias_initializer = 'zeros',
     activation = 'linear')
