@@ -16,7 +16,7 @@ def main():
         # Name of case
         case = directory.split('_')[-1]
         #TODO: Hack
-        if case != 'square': continue
+        if case == 'cylinder': continue
         data[case] = ([], [], [])
         print(f'Processing the {case} cases')
         print('Working on case: ', end='', flush=True)

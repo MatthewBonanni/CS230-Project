@@ -13,13 +13,11 @@ def main():
 
     # Number of interpolation points along the shock
     n_points = 5
-    # Whether to process data from scratch or read from file
-    process_data = True
     # Whether to plot one case, and if so, which case
-    just_one_case = True
+    just_one_case = False
     if just_one_case:
-        plot_case = 'square'
-        plot_number = 0
+        plot_case = 'triangle'
+        plot_number = 66
 
     # Load data
     with open('data.pkl', 'rb') as outfile:
@@ -35,57 +33,48 @@ def main():
     geoms['triangle'] = points_on_triangle(np.array([1, 0]), 1, 12)
     geoms['cylinder'] = points_on_cylinder(np.array([0, 0]), 1, 12)
 
-    if process_data:
-        # Loop over geometries
-        shock = {}
-        for case, results in data.items():
-            # TODO: Hack
+    # Loop over geometries
+    shock = {}
+    for case, results in data.items():
+        if just_one_case:
             if case != plot_case: continue
-            x_list, pressure_list, grad_list = results
-            shock[case] = []
-            print(f'Processing the {case} cases')
-            print('Working on case: ', end='', flush=True)
-            # Loop over cases
-            for i in range(len(x_list)):
-                # TODO: Hack
+        x_list, pressure_list, grad_list = results
+        shock[case] = []
+        print(f'Processing the {case} cases')
+        # Loop over cases
+        for i in range(len(x_list)):
+            if just_one_case:
                 if i != plot_number:
                     shock[case].append(None)
                     continue
-                print(f'{i}, ', end='', flush=True)
-                x = x_list[i]
-                pressure = pressure_list[i]
-                grad = grad_list[i]
-                # If the case doesn't exist, skip it and append None
-                if x is None:
-                    shock[case].append(None)
-                    continue
+            x = x_list[i]
+            pressure = pressure_list[i]
+            grad = grad_list[i]
+            # If the case doesn't exist, skip it and append None
+            if x is None:
+                shock[case].append(None)
+                continue
 
-                # -- Find shock -- #
-                # Maximum distance away from horizontal line
-                max_offset = .2
-                # Points in y-direction to start at
-                y_starts = np.linspace(-4, 4, n_points)
+            # -- Find shock -- #
+            # Maximum distance away from horizontal line
+            max_offset = .2
+            # Points in y-direction to start at
+            y_starts = np.linspace(-4, 4, n_points)
 
-                # Loop over all points in y
-                shock_x = np.empty((n_points, 2))
-                for y_idx, y_start in enumerate(y_starts):
-                    # Find the points which lie near this line
-                    points = np.argwhere(np.abs(x[:, 1] - y_start) < .2)[:, 0]
-                    # Take the point with highest x-direction gradient
-                    point_idx = np.argmax(grad[points, 0])
-                    shock_x[y_idx, :] = x[points[point_idx]]
-                # Save data
-                shock[case].append(shock_x)
-            print()
-
-            # Write to file
-            with open('shock.pkl', 'wb') as outfile:
-                pickle.dump(shock, outfile, protocol=pickle.HIGHEST_PROTOCOL)
-
-    else:
-        # Load data
-        with open('shock.pkl', 'rb') as outfile:
-            shock = pickle.load(outfile)
+            # Loop over all points in y
+            shock_x = np.empty((n_points, 2))
+            for y_idx, y_start in enumerate(y_starts):
+                # Find the points which lie near this line
+                points = np.argwhere(np.abs(x[:, 1] - y_start) < max_offset)[:, 0]
+                # Remove any points too close to the origin
+                points = points[np.argwhere(np.linalg.norm(x[points],
+                    axis=1) > .3)[:, 0]]
+                # Take the point with highest x-direction gradient
+                point_idx = np.argmax(grad[points, 0])
+                shock_x[y_idx, :] = x[points[point_idx]]
+            # Save data
+            shock[case].append(shock_x)
+        print()
 
     # Plot one case
     if just_one_case:
@@ -97,7 +86,7 @@ def main():
     # Otherwise, plot them all and save to file
     else:
         for case, results in data.items():
-            x_list, pressure_list = results
+            x_list, pressure_list, grad_list = results
             print(f'Plotting the {case} cases')
             print('Working on case: ', end='', flush=True)
             # Loop over cases
@@ -106,9 +95,10 @@ def main():
                 shock_x = shock[case][i]
                 x = data[case][0][i]
                 pressure = data[case][1][i]
+                grad = data[case][2][i]
                 # If there's no data, skip this one
                 if x is None: continue
-                plot_data(case, i, n_points, shock_x, x, pressure, geoms,
+                plot_data(case, i, n_points, shock_x, x, pressure, grad, geoms,
                         save_fig = True)
             print()
 
@@ -157,6 +147,7 @@ def plot_data(case, number, n_points, shock_x, x, pressure, grad, geoms,
         cbar.set_label('$x$ Pressure Gradient', rotation=0, labelpad=0, y=1.15)
 
     if save_fig:
+        os.makedirs(f'plots', exist_ok = True)
         os.makedirs(f'plots/{case}', exist_ok = True)
         if number < 10:
             file_name = f'plots/{case}/plot_0{number}'
