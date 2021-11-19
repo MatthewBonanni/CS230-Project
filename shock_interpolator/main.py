@@ -76,9 +76,23 @@ def main():
             shock[case].append(shock_x)
         print()
 
+    # Package Mach number, shock points, and geometry points
+    data_to_write = {}
+    for case, results in data.items():
+        data_to_write[case] = ([], [], [])
+        x_list, _, _ = results
+        # Loop over cases
+        for i in range(len(x_list)):
+            Mach = 1.4 + .1 * i
+            if x_list[i] is not None:
+                data_to_write[case][0].append(Mach)
+                data_to_write[case][1].append(shock[case])
+                data_to_write[case][2].append(geoms[case])
+
     # Write to file
     with open('shock.pkl', 'wb') as outfile:
-        pickle.dump(shock, outfile, protocol=pickle.HIGHEST_PROTOCOL)
+        pickle.dump(data_to_write, outfile, protocol=pickle.HIGHEST_PROTOCOL)
+    breakpoint()
 
     # Plot one case
     if just_one_case:
