@@ -15,8 +15,6 @@ def main():
     for directory in os.listdir(cfd_results):
         # Name of case
         case = directory.split('_')[-1]
-        #TODO: Hack
-        if case == 'cylinder': continue
         data[case] = ([], [], [])
         print(f'Processing the {case} cases')
         print('Working on case: ', end='', flush=True)

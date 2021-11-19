@@ -16,8 +16,8 @@ def main():
     # Whether to plot one case, and if so, which case
     just_one_case = False
     if just_one_case:
-        plot_case = 'triangle'
-        plot_number = 66
+        plot_case = 'wedge'
+        plot_number = 0
 
     # Load data
     with open('data.pkl', 'rb') as outfile:
@@ -75,6 +75,10 @@ def main():
             # Save data
             shock[case].append(shock_x)
         print()
+
+    # Write to file
+    with open('shock.pkl', 'wb') as outfile:
+        pickle.dump(shock, outfile, protocol=pickle.HIGHEST_PROTOCOL)
 
     # Plot one case
     if just_one_case:
