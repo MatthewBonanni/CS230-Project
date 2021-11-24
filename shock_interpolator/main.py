@@ -16,7 +16,7 @@ def main():
     # Whether to plot one case, and if so, which case
     just_one_case = False
     if just_one_case:
-        plot_case = 'wedge'
+        plot_case = 'ellipse'
         plot_number = 0
 
     # Load data
@@ -32,6 +32,7 @@ def main():
     geoms['wedge'] = points_on_wedge(np.array([0, 0]), 1, 12)
     geoms['triangle'] = points_on_triangle(np.array([1, 0]), 1, 12)
     geoms['cylinder'] = points_on_cylinder(np.array([0, 0]), 1, 12)
+    geoms['ellipse'] = points_on_ellipse(np.array([0, 0]), 1, 12)
 
     # Loop over geometries
     shock = {}
@@ -77,22 +78,25 @@ def main():
         print()
 
     # Package Mach number, shock points, and geometry points
-    data_to_write = {}
-    for case, results in data.items():
-        data_to_write[case] = ([], [], [])
-        x_list, _, _ = results
-        # Loop over cases
-        for i in range(len(x_list)):
-            Mach = 1.4 + .1 * i
-            if x_list[i] is not None:
-                data_to_write[case][0].append(Mach)
-                data_to_write[case][1].append(shock[case][i])
-                data_to_write[case][2].append(geoms[case])
+    if not just_one_case:
+        data_to_write = {}
+        for case, results in data.items():
+            data_to_write[case] = ([], [], [])
+            x_list, _, _ = results
+            # Loop over cases
+            for i in range(len(x_list)):
+                if case == 'ellipse':
+                    Mach = 1.5 + .5 * i
+                else:
+                    Mach = 1.4 + .1 * i
+                if x_list[i] is not None:
+                    data_to_write[case][0].append(Mach)
+                    data_to_write[case][1].append(shock[case][i])
+                    data_to_write[case][2].append(geoms[case])
 
-    # Write to file
-    with open('shock.pkl', 'wb') as outfile:
-        pickle.dump(data_to_write, outfile, protocol=pickle.HIGHEST_PROTOCOL)
-    breakpoint()
+        # Write to file
+        with open('shock.pkl', 'wb') as outfile:
+            pickle.dump(data_to_write, outfile, protocol=pickle.HIGHEST_PROTOCOL)
 
     # Plot one case
     if just_one_case:
@@ -237,6 +241,16 @@ def points_on_cylinder(tip, d, n):
     x = -np.cos(theta)
     y = np.sin(theta)
     return (d/2) * np.vstack([x, y]).T
+
+def points_on_ellipse(tip, d, n):
+    '''
+    Calculate (x, y) values of points linearly spaced along an ellipse.
+    '''
+    # Start with a circle
+    points = points_on_cylinder(tip, d, n)
+    # Squish the x values by a factor of 2
+    points[:, 0] /= 2
+    return points
 
 if __name__ == '__main__':
     main()
