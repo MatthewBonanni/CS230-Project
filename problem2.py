@@ -28,11 +28,11 @@ plt.rc('figure', titlesize=BIGGER_SIZE)  # fontsize of the figure title
 dataFile = "shock_interpolator/shock.pkl"
 load_model = True
 model_path = "problem2_model"
-n_hidden_layers = 10
-n_hidden_units = 100
+n_hidden_layers = 7
+n_hidden_units = 50
 seed = 42
 learning_rate = 0.005
-train_epochs = 1000
+train_epochs = 500
 mean_dist_threshold = 0.25
 
 np.random.seed(seed)
@@ -70,6 +70,7 @@ def plot_sample(features, geom_cols, labels, preds, index, filename):
     plt.scatter(sample_geom_x, sample_geom_y, label="Geometry")
     plt.scatter(sample_labels_x, sample_labels_y, label="Label")
     plt.scatter(sample_preds_x, sample_preds_y, label="Prediction")
+    plt.axis('equal')
     plt.title("Sample Result, $M = {0:.2f}$".format(sample_mach))
     plt.xlabel("$x$")
     plt.ylabel("$y$")
@@ -135,19 +136,6 @@ test_labels = test_features[labels_cols].copy()
 train_features = train_features.drop(columns=labels_cols+['type'])
 test_features = test_features.drop(columns=labels_cols+['type'])
 
-# Define layers
-norm_layer = layers.BatchNormalization()
-dense_layer = layers.Dense(
-    units = n_hidden_units,
-    kernel_initializer = 'glorot_uniform',
-    bias_initializer = 'zeros',
-    activation = 'relu')
-output_layer = layers.Dense(
-    units = n_shock*2, # double for x and y coords
-    kernel_initializer = 'glorot_uniform',
-    bias_initializer = 'zeros',
-    activation = 'linear')
-
 if load_model:
     print("Loading model...")
     model = keras.models.load_model(model_path)
@@ -155,11 +143,19 @@ else:
     print("Building model...")
 
     # Build model
-    model = tf.keras.Sequential([norm_layer])
+    model = tf.keras.Sequential([layers.BatchNormalization()])
     for i in range(n_hidden_layers):
-        model.add(dense_layer)
-        model.add(norm_layer)
-    model.add(output_layer)
+        model.add(layers.Dense(
+            units = n_hidden_units,
+            kernel_initializer = 'glorot_uniform',
+            bias_initializer = 'zeros',
+            activation = 'relu'))
+        model.add(layers.BatchNormalization())
+    model.add(layers.Dense(
+        units = n_shock*2, # double for x and y coords
+        kernel_initializer = 'glorot_uniform',
+        bias_initializer = 'zeros',
+        activation = 'linear'))
 
     # Compile model
     model.compile(
