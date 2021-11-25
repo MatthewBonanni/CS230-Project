@@ -8,7 +8,6 @@ import pickle
 import scipy
 from scipy.interpolate import lagrange
 
-
 def main():
 
     # Number of interpolation points along the shock
@@ -22,17 +21,6 @@ def main():
     # Load data
     with open('data.pkl', 'rb') as outfile:
         data = pickle.load(outfile)
-
-    # Geometries
-    geoms = {}
-    # TODO: Get naca geom
-    geoms['naca0012'] = points_on_diamond(np.array([0, 0]), 1, 12)
-    geoms['square'] = points_on_square(np.array([0, .5]), 1, 12)
-    geoms['diamond'] = points_on_diamond(np.array([0, 0]), 1, 12)
-    geoms['wedge'] = points_on_wedge(np.array([0, 0]), 1, 12)
-    geoms['triangle'] = points_on_triangle(np.array([1, 0]), 1, 12)
-    geoms['cylinder'] = points_on_cylinder(np.array([0, 0]), 1, 12)
-    geoms['ellipse'] = points_on_ellipse(np.array([0, 0]), 1, 12)
 
     # Loop over geometries
     shock = {}
@@ -125,14 +113,19 @@ def main():
             print()
 
 
-def plot_data(case, number, n_points, shock_x, x, pressure, grad, geoms,
-        save_fig = False):
+def plot_data(case, number, n_points, shock_x_list, x, pressure, grad, geoms,
+        save_fig = False, colors = ['#ff7518'], labels = None, fig_dir = None):
 
     # Construct interpolant for the shock
     ref_nodes = np.polynomial.chebyshev.chebroots([0]*n_points + [1])
-    x_poly = lagrange(ref_nodes, shock_x[:, 0])
-    y_poly = lagrange(ref_nodes, shock_x[:, 1])
     ref_plot_points = np.linspace(-1, 1, 100)
+    x_poly_list = []
+    y_poly_list = []
+    for shock_x in shock_x_list:
+        x_poly = lagrange(ref_nodes, shock_x[:, 0])
+        y_poly = lagrange(ref_nodes, shock_x[:, 1])
+        x_poly_list.append(x_poly)
+        y_poly_list.append(y_poly)
 
     plot_pressure = True
     # Plot
@@ -152,9 +145,13 @@ def plot_data(case, number, n_points, shock_x, x, pressure, grad, geoms,
     y_geom = np.concatenate((geoms[case][:, 1], [geoms[case][0, 1]]))
     plt.fill(x_geom, y_geom, color='white')
     # Shock polynomial
-    plt.plot(x_poly(ref_plot_points), y_poly(ref_plot_points), '#ff7518', lw=3)
+    for x_poly, y_poly, color, label in zip(x_poly_list, y_poly_list, colors,
+            labels):
+        plt.plot(x_poly(ref_plot_points), y_poly(ref_plot_points), color, lw=3,
+                label = label)
     # Shock points
-    plt.plot(shock_x[:, 0], shock_x[:, 1], 'ko', ms=8)
+    for shock_x in shock_x_list:
+        plt.plot(shock_x[:, 0], shock_x[:, 1], 'ko', ms=8)
     # Grid points
     #plt.plot(x[:, 0], x[:, 1], 'ko', ms=3)
     # Axes
@@ -167,14 +164,20 @@ def plot_data(case, number, n_points, shock_x, x, pressure, grad, geoms,
         cbaxes = inset_axes(plt.gca(), width="3%", height="30%", loc=3)
         cbar = plt.colorbar(cax=cbaxes, orientation = 'vertical')
         cbar.set_label('$x$ Pressure Gradient', rotation=0, labelpad=0, y=1.15)
+    if labels is not None:
+        plt.legend(fontsize=12)
 
     if save_fig:
-        os.makedirs(f'plots', exist_ok = True)
-        os.makedirs(f'plots/{case}', exist_ok = True)
-        if number < 10:
-            file_name = f'plots/{case}/plot_0{number}'
+        if fig_dir is None:
+            os.makedirs(f'plots', exist_ok = True)
+            os.makedirs(f'plots/{case}', exist_ok = True)
+            prefix = f'plots/{case}/'
         else:
-            file_name = f'plots/{case}/plot_{number}'
+            prefix = fig_dir
+        if number < 10:
+            file_name = f'{prefix}/plot_0{number}'
+        else:
+            file_name = f'{prefix}/plot_{number}'
         plt.savefig(file_name, bbox_inches='tight')
         plt.close()
         plt.clf()
@@ -251,6 +254,17 @@ def points_on_ellipse(tip, d, n):
     # Squish the x values by a factor of 2
     points[:, 0] /= 2
     return points
+
+# Geometries
+geoms = {}
+# TODO: Get naca geom
+geoms['naca0012'] = points_on_diamond(np.array([0, 0]), 1, 12)
+geoms['square'] = points_on_square(np.array([0, .5]), 1, 12)
+geoms['diamond'] = points_on_diamond(np.array([0, 0]), 1, 12)
+geoms['wedge'] = points_on_wedge(np.array([0, 0]), 1, 12)
+geoms['triangle'] = points_on_triangle(np.array([1, 0]), 1, 12)
+geoms['cylinder'] = points_on_cylinder(np.array([0, 0]), 1, 12)
+geoms['ellipse'] = points_on_ellipse(np.array([0, 0]), 1, 12)
 
 if __name__ == '__main__':
     main()
